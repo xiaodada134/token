@@ -1,0 +1,238 @@
+1，前后端分离
+	1.1 什么是前后端分离：  
+	
+		前端 -  即客户端，负责渲染用户显示界面【如web的js动态渲染页面, 安卓， IOS，pc客户端等】
+		后端 -  即服务器端，负责接收http请求，处理数据
+		API -   Application Programming Interface  是一些预先定义的函数，或指软件系统不同组成部分衔接的约定
+	
+		请求过程：
+		    1，前端通过http请求后端API 
+		    2，后端以json形式返回前端数据
+		    3，前端生成用户显示界面【如html , ios , android】
+	
+		判断前后端分离得核心标准： 谁生成显示页面
+		1，后端生成【前后端未分离】  ex: flask->render_template  django -> HttpResponse(html)
+		2, 前端生成【前后端分离】
+	
+	1.2 优点：
+		1，各司其职，
+			前端：视觉层面，兼容性，前端性能优化
+			后端：并发，可用性，性能
+		
+		2，解耦，前端和后端均易于扩展
+		3，后端灵活搭配各类前端 - 如安卓等
+		4，提高用户体验 	
+		5, 前端+后端可完全并行开发，加快开发效率
+	
+	1.3 分离常见问题
+	     1，如何解决http无状态得问题？                 答：token
+	     2，如果前端为JS，跨域问题怎么解决？           答：jsonp?
+		 3，csrf问题？                                 答：token
+		 4，SPA网站是否会影响SEO效果                   答：YES
+		 (Single Page web Application)
+		 (Search Engine Optimization)
+		 5，"老板，这个逻辑到底前端做还是后端？        答：具体问题具体分析
+		 6，"老板，前端工作压力大啊~怎么办啊？"        答：具体问题具体分析
+		 7，动静分离和前后端分离是等价的么？           答：否
+	
+	1.4 实现
+		1，Django/Flask 后端只返回json数据
+		2，前端-> ex: js动态渲染页面
+	    2，前端部署在独立的服务器，后端部署在独立的服务器
+
+
+2，token - 令牌
+
+	1，回顾：传统的web登陆 【session + cookie】
+	2，JWT：JSON WEB TOKEN
+		学前必备技能：
+		1，base64 ‘防君子不防小人’ 
+			import base64
+			s = b'guoxiaonao'
+			#b64encode 参数为byte类型， 返回为byte类型
+			encode_s = base64.b64encode(s)
+			#b64encode 参数为byte类型， 返回为byte类型
+			decode_s = base64.b64decode(encode_s)
+		2，HS256 - HMAC-SHA256
+			哈希算法三大特点：
+	            1，不可逆
+	            2，定长
+	            3，雪崩（改变任意一个字节，输出全部都会改变）
+			SHA256:
+				import hashlib
+				s = hashlib.sha256()
+				s.update(b'xxxx')
+				s.hexdigest()
+	
+			HMAC-SHA256:
+				import hmac
+				h = hmac.new(key, str, digestmod='SHA256 ')
+				h.hexdigest()
+	
+		3，RSA256 非对称加密
+		ex:1，加密：公钥加密，私钥解密
+		   2，签名：私钥签名，公钥验签
+	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzb21lIjoicGF5bG9hZCJ9.4twFt5NiznN84AWoo1d7KO1T_yoc0Z6XOpOVswacPZg'
+		
+		1，JWT 组成
+			header 
+				元数据格式如下：
+					{'alg':'HS256', 'typ':'JWT'}
+	
+					alg算法 - 默认为 HS256
+					typ - 默认JWT
+	
+					传输前需序列化成json串，再做base64加密，结果如下：
+					eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+			payload
+				{'exp':xxx, 'iss':xx...}
+				分为公共声明和私有声明
+				1，公共声明
+					“exp” (Expiration Time) 过期时间【可选】
+					“nbf” (Not Before Time) 生效时间，如果当前时间在nbf时间之前，则Token不被接受 【可选】
+					“iss” (Issuer) Claim    签发者    【可选】
+					“aud” (Audience) Claim	签发面向群体 【可选】
+					“iat” (Issued At) Claim 创建时间    【可选】
+				2，私有声明
+					用户可根据业务需要添加自己的标识
+					如 username,等
+				
+				整体内容将会做base64处理
+	
+			signature 签名
+	
+			将base64后的header + '.' + base64后的payload 和 自定义的 key
+			做hmc256签名
+	
+		2，结果生成：
+			base64(header) + '.' + base64(payload) + '.' + sign
+	
+		3, 校验逻辑：
+			1，	解析header, 确认alg
+			2,	签名校验 -  将传到服务器的token 中的前两部分进行alg的签名
+				，将结果与传过来的签名进行对比，若比对成功，则认为
+				内容未被篡改
+			3,	获取payload中内容，进行按需检查
+	
+		4, pyjwt - pip3 install pyjwt
+			import jwt
+			1, encode(payload,key,algorithm) - 生成jwt
+				参数
+				payload  -  严格按照jwt规范，格式为字典
+				key  - 签名的key
+				algorithm - 签名算法,默认为 'HS256'
+	
+			2，decode('jwt_str', key, algorithm )
+				参数
+				jwt_str - 具体的token字符串
+				key - 签名的key
+				algorithm - 签名算法
+			
+				异常：
+				1，payload 中含有 'exp'时，若该token过期则抛出
+					jwt.ExpiredSignatureError
+				2，payload 中含有 'iss'时，decode需添加 issuer参数
+					ex -> decode('jwt_str', key, algorithm, issuer='your_issuer')
+					若issuer校验失败，则抛出 jwt.InvalidIssuerError
+				3，payload 中含有 'aud'时，decode需添加audience参数
+					ex ->decode('jwt_str', key, algorithm, audience='your_audience')
+					若audience校验失败，则抛出 jwt.InvalidAudienceError
+			3，payload - exp 
+				{'exp': time.time()+expire_seconds}
+
+
+		jwt-官方网站：https://jwt.io/#debugger-io
+		
+		py-jwt 官方网站： https://pyjwt.readthedocs.io/en/latest/usage.html
+
+
+3,CORS - Cross-origin resource sharing - 跨域资源共享
+
+	回顾: 什么是同源？
+	协议 + 域名 + 端口
+	
+	1，什么是CORS
+		允许浏览器向跨源(协议 + 域名 + 端口)服务器，发出XMLHttpRequest请求，从而克服了AJAX只能同源使用的限制
+	2, 特点：
+		1，浏览器自动完成（在请求头中加入特殊头 或 发送特殊请求）
+		2，服务器需要支持（响应头中需要有特殊头）
+	3，	简单请求(Simple requests)和预检请求(Preflighted requests)
+	
+		满足以下全部条件的请求为 简单请求
+		1，请求方法如下：
+			GET or HEAD or POST
+		2, 请求头仅包含如下：
+			Accept 
+			Accept-Language
+			Content-Language
+			Content-Type 具体要求如下
+		3,  Content-Type 仅支持如下三种：
+			application/x-www-form-urlencoded
+			multipart/form-data
+			text/plain
+		不满足以上任意一点的请求都是 预检请求
+	
+	4,简单请求发送流程
+		1，请求
+			header 携带 Origin , 该字段表明自己来自哪个域
+		2，响应
+			如果Origin在可接受域，则返回如下头
+			    Access-Control-Allow-Origin， 该字段表明服务器接受的访问域
+				Access-Control-Allow-Credentials （可选字段）是否接受Cooike, 值为布尔值
+				Access-Control-Expose-Headers （可选字段）是否需要拓展头
+				默认request能拿到的response头为 Cache-Control，Content-Language，Content-Type，Expires，
+				Last-Modified
+	
+			如果不接受，则头信息不包含Access-Control-Allow-Origin 头，
+			浏览器抛错
+	
+	5，预检请求发送流程
+		1，OPTION请求阶段
+			Origin							此次请求的域
+			Access-Control-Request-Method   此次请求使用方法
+			Access-Control-Request-Headers  此次请求使用的头
+		2，OPTION响应阶段
+			Access-Control-Allow-Origin 
+			Access-Control-Allow-Methods 告知浏览器 服务器允许的所有方法
+			Access-Control-Allow-Headers 返回所有支持的头部，当request有
+			‘Access-Control-Request-Headers’时，该响应头必然回复
+			Access-Control-Allow-Credentials [可选]
+			Access-Control-Max-Age [可选] OPTION请求可缓存时间，单位秒
+		3，主请求阶段
+			Origin 
+		4，主请求响应阶段
+			Access-Control-Allow-Origin
+	 
+	6，django支持 
+		pip3 install django-cors-headers==2.5.3
+	    django-cors-headers官网 https://pypi.org/project/django-cors-headers/
+		
+		1，配置流程
+			1，INSTALLED_APPS 中添加 corsheaders
+			2，MIDDLEWARE 中添加 corsheaders.middleware.CorsMiddleware
+			   位置尽量靠前，官方建议 ‘django.middleware.common.CommonMiddleware’ 上方
+			3，CORS_ORIGIN_ALLOW_ALL  布尔值  如果为True 白名单不启用
+			4，CORS_ORIGIN_WHITELIST =[
+				"https://example.com"
+			]
+			5, CORS_ALLOW_METHODS = (
+					'DELETE',
+					'GET',
+					'OPTIONS',
+					'PATCH',
+					'POST',
+					'PUT',
+					)
+			6, CORS_ALLOW_HEADERS = (
+					'accept-encoding',
+					'authorization',
+					'content-type',
+					'dnt',
+					'origin',
+					'user-agent',
+					'x-csrftoken',
+					'x-requested-with',
+				)
+			7, CORS_PREFLIGHT_MAX_AGE  默认 86400s
+			8, CORS_EXPOSE_HEADERS  []
+			9, CORS_ALLOW_CREDENTIALS  布尔值， 默认False
